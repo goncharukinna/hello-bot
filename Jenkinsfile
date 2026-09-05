@@ -29,6 +29,13 @@ spec:
       name: docker-socket
     - mountPath: /home/jenkins/agent
       name: workspace-volume
+  - name: kubectl
+    image: bitnami/kubectl:latest
+    command: ['cat']
+    tty: true
+    volumeMounts:
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   volumes:
   - name: docker-socket
     hostPath:
@@ -75,13 +82,10 @@ spec:
             steps {
                 container('docker') {
                     script {
-                        def imageTag = "${DOCKER_IMAGE}:${env.BUILD_ID}"
-                        sh "docker build -t ${imageTag} ."
-                        // Сохраняем тег для следующих этапов
-                        env.IMAGE_TAG = imageTag
+                        sh "docker build -t ${DOCKER_IMAGE}:${env.BUILD_ID} ."
                     }
                 }
-                echo "Образ собран: ${env.IMAGE_TAG}"
+                echo "Образ собран: ${DOCKER_IMAGE}:${env.BUILD_ID}"
             }
         }
 
@@ -106,7 +110,7 @@ spec:
 
         stage('Deploy to Kubernetes') {
             steps {
-                container('jnlp') {
+                container('kubectl') {
                     script {
                         sh """
                             kubectl set image deployment/${DEPLOYMENT_NAME} \
