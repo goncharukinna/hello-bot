@@ -8,7 +8,7 @@ kind: Pod
 spec:
   containers:
   - name: jnlp
-    image: jenkins/jnlp-slave:latest
+    image: jenkins/inbound-agent:alpine
     args: ['$(JENKINS_SECRET)', '$(JENKINS_NAME)']
     volumeMounts:
     - mountPath: /var/run/docker.sock
