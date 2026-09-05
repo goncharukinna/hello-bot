@@ -1,7 +1,8 @@
-agent {
-    kubernetes {
-        label 'node-agent'
-        yaml '''
+pipeline {
+    agent {
+        kubernetes {
+            label 'node-agent'
+            yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -42,8 +43,8 @@ spec:
   - name: workspace-volume
     emptyDir: {}
 '''
+        }
     }
-}
 
     environment {
         NAMESPACE = 'default'
