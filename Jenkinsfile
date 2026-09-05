@@ -11,13 +11,22 @@ spec:
     image: jenkins/inbound-agent:latest
     args: ['$(JENKINS_SECRET)', '$(JENKINS_NAME)']
     volumeMounts:
-    - mountPath: /var/run/docker.sock
-      name: docker-socket
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
   - name: node
     image: node:18-alpine
     command: ['cat']
     tty: true
     volumeMounts:
+    - mountPath: /home/jenkins/agent
+      name: workspace-volume
+  - name: docker
+    image: docker:latest
+    command: ['cat']
+    tty: true
+    volumeMounts:
+    - mountPath: /var/run/docker.sock
+      name: docker-socket
     - mountPath: /home/jenkins/agent
       name: workspace-volume
   volumes:
@@ -64,35 +73,49 @@ spec:
 
         stage('Build Docker Image') {
             steps {
-                script {
-                    def image = docker.build("${DOCKER_IMAGE}:${env.BUILD_ID}", ".")
-                    echo "Образ ${DOCKER_IMAGE}:${env.BUILD_ID} собран."
+                container('docker') {
+                    script {
+                        def imageTag = "${DOCKER_IMAGE}:${env.BUILD_ID}"
+                        sh "docker build -t ${imageTag} ."
+                        // Сохраняем тег для следующих этапов
+                        env.IMAGE_TAG = imageTag
+                    }
                 }
+                echo "Образ собран: ${env.IMAGE_TAG}"
             }
         }
 
         stage('Push to Registry') {
             steps {
-                script {
-                    docker.withRegistry('', 'docker-credentials') {
-                        docker.image("${DOCKER_IMAGE}:${env.BUILD_ID}").push("latest")
-                        docker.image("${DOCKER_IMAGE}:${env.BUILD_ID}").push("${env.BUILD_ID}")
+                container('docker') {
+                    script {
+                        withCredentials([usernamePassword(credentialsId: 'docker-credentials', 
+                                                         usernameVariable: 'DOCKER_USER', 
+                                                         passwordVariable: 'DOCKER_PASS')]) {
+                            sh '''
+                                echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                                docker push ${DOCKER_IMAGE}:${BUILD_ID}
+                                docker push ${DOCKER_IMAGE}:latest
+                            '''
+                        }
                     }
-                    echo "Образ загружен в Docker Hub."
                 }
+                echo "Образ загружен в Docker Hub."
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                script {
-                    sh """
-                        kubectl set image deployment/${DEPLOYMENT_NAME} \
-                            ${CONTAINER_NAME}=${DOCKER_IMAGE}:${env.BUILD_ID} \
-                            -n ${NAMESPACE}
-                    """
-                    echo "Деплоймент ${DEPLOYMENT_NAME} обновлен."
+                container('jnlp') {
+                    script {
+                        sh """
+                            kubectl set image deployment/${DEPLOYMENT_NAME} \
+                                ${CONTAINER_NAME}=${DOCKER_IMAGE}:${env.BUILD_ID} \
+                                -n ${NAMESPACE}
+                        """
+                    }
                 }
+                echo "Деплоймент ${DEPLOYMENT_NAME} обновлен."
             }
         }
     }
