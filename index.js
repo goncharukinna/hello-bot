@@ -1,46 +1,53 @@
 // index.js
 require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
+const fs = require('fs');
 
 // ---------- Языковые ресурсы ----------
 const strings = {
   ru: {
-    welcome: (name) => `Привет, ${name}! 👋\nЯ — твой помощник. Выбери действие:`,
-    menu: '📋 Вот наше меню... (пока пусто)',
-    help: '❓ Я умею:\n- Отвечать на приветствия\n- Проводить короткий опрос\n- Показывать это меню',
-    survey: '📝 Давай проведём небольшой опрос!',
-    askName: 'Как тебя зовут?',
+    welcome: (name) => `Привет, ${name}! 👋\n\nЯ проведу небольшой опрос. Отвечай на вопросы, и в конце я покажу результат.`,
+    askName: '📝 Как тебя зовут?',
     askAge: 'Сколько тебе лет?',
-    thanks: (name, age) => `Спасибо, ${name}! Тебе ${age} лет. Приятно познакомиться! 😊`,
-    greeting: [
-      'Привет! Как дела?',
-      'Здравствуй! Чем могу быть полезен?',
-      'И тебе привет! Давно не виделись.',
-      'Привет-привет! Рассказывай, что нового?',
-    ],
-    unknown: 'Извини, я не понимаю. Воспользуйся кнопками или напиши /help.',
+    askGender: 'Укажи свой пол:',
+    askCity: 'Из какого ты города?',
+    askHobby: 'Расскажи о своём хобби (одним предложением)',
+    askColor: 'Какой твой любимый цвет?',
+    thanks: (data) => {
+      return `✅ **Спасибо за участие в опросе!**\n\n`
+        + `👤 Имя: ${data.name}\n`
+        + `📅 Возраст: ${data.age}\n`
+        + `🚻 Пол: ${data.gender}\n`
+        + `🏙 Город: ${data.city}\n`
+        + `🎨 Любимый цвет: ${data.color}\n`
+        + `💡 Хобби: ${data.hobby}`;
+    },
+    unknown: 'Извини, я не понял. Пожалуйста, ответь на вопрос.',
+    cancel: '❌ Опрос отменён.',
   },
   en: {
-    welcome: (name) => `Hello, ${name}! 👋\nI'm your assistant. Choose an action:`,
-    menu: '📋 Here is our menu... (empty for now)',
-    help: '❓ I can:\n- Reply to greetings\n- Conduct a short survey\n- Show this menu',
-    survey: '📝 Let\'s do a quick survey!',
-    askName: 'What is your name?',
+    welcome: (name) => `Hello, ${name}! 👋\n\nI'll conduct a short survey. Answer the questions, and I'll show you the result at the end.`,
+    askName: '📝 What is your name?',
     askAge: 'How old are you?',
-    thanks: (name, age) => `Thank you, ${name}! You are ${age} years old. Nice to meet you! 😊`,
-    greeting: [
-      'Hi! How are you?',
-      'Hello! How can I help?',
-      'Hey there! Long time no see.',
-      'Hi hi! What\'s new?',
-    ],
-    unknown: 'Sorry, I don\'t understand. Use the buttons or type /help.',
+    askGender: 'What is your gender?',
+    askCity: 'What city are you from?',
+    askHobby: 'Tell me about your hobby (in one sentence)',
+    askColor: 'What is your favorite color?',
+    thanks: (data) => {
+      return `✅ **Thanks for participating!**\n\n`
+        + `👤 Name: ${data.name}\n`
+        + `📅 Age: ${data.age}\n`
+        + `🚻 Gender: ${data.gender}\n`
+        + `🏙 City: ${data.city}\n`
+        + `🎨 Favorite color: ${data.color}\n`
+        + `💡 Hobby: ${data.hobby}`;
+    },
+    unknown: 'Sorry, I didn\'t understand. Please answer the question.',
+    cancel: '❌ Survey cancelled.',
   },
 };
 
-// Определяем язык пользователя (по умолчанию ru)
 function getLang(ctx) {
-  // Можно использовать код языка из Telegram или сохранять в сессии
   const langCode = ctx.from?.language_code || 'ru';
   return strings[langCode] || strings.ru;
 }
@@ -50,114 +57,153 @@ const surveyScene = new Scenes.BaseScene('survey');
 
 surveyScene.enter(async (ctx) => {
   const lang = getLang(ctx);
-  await ctx.reply(lang.survey);
+  const name = ctx.from.first_name || 'друг';
+  await ctx.reply(lang.welcome(name));
   await ctx.reply(lang.askName);
-  return ctx.scene.state.step = 'name';
+  ctx.scene.state.step = 'name';
 });
 
 surveyScene.on('text', async (ctx) => {
   const lang = getLang(ctx);
   const state = ctx.scene.state;
 
-  if (!state.step) state.step = 'name';
+  // Обработка команды /cancel
+  if (ctx.message.text === '/cancel') {
+    await ctx.reply(lang.cancel);
+    return ctx.scene.leave();
+  }
 
-  if (state.step === 'name') {
-    state.name = ctx.message.text;
-    state.step = 'age';
-    await ctx.reply(lang.askAge);
-  } else if (state.step === 'age') {
-    state.age = ctx.message.text;
-    // Завершаем сцену
-    await ctx.reply(lang.thanks(state.name, state.age));
-    await ctx.scene.leave();
+  // Определяем текущий шаг и сохраняем ответ
+  switch (state.step) {
+    case 'name':
+      state.name = ctx.message.text;
+      state.step = 'age';
+      await ctx.reply(lang.askAge);
+      break;
+
+    case 'age':
+      const age = parseInt(ctx.message.text);
+      if (isNaN(age) || age < 1 || age > 120) {
+        await ctx.reply('❌ Пожалуйста, введи корректный возраст (число от 1 до 120).');
+        return;
+      }
+      state.age = age;
+      state.step = 'gender';
+      await ctx.reply(
+        lang.askGender,
+        Markup.keyboard([
+          ['Мужской', 'Женский'],
+          ['Другой', 'Не хочу отвечать']
+        ]).oneTime().resize()
+      );
+      break;
+
+    case 'gender':
+      state.gender = ctx.message.text;
+      state.step = 'city';
+      await ctx.reply(lang.askCity);
+      break;
+
+    case 'city':
+      state.city = ctx.message.text;
+      state.step = 'color';
+      await ctx.reply(
+        lang.askColor,
+        Markup.keyboard([
+          ['🔴 Красный', '🔵 Синий', '🟢 Зелёный'],
+          ['🟡 Жёлтый', '⚫️ Чёрный', '⚪️ Белый'],
+          ['🟣 Фиолетовый', '🟠 Оранжевый', 'Другой']
+        ]).oneTime().resize()
+      );
+      break;
+
+    case 'color':
+      state.color = ctx.message.text;
+      state.step = 'hobby';
+      await ctx.reply(lang.askHobby);
+      break;
+
+    case 'hobby':
+      state.hobby = ctx.message.text;
+      // Опрос завершён
+      const data = {
+        name: state.name,
+        age: state.age,
+        gender: state.gender,
+        city: state.city,
+        color: state.color,
+        hobby: state.hobby,
+        userId: ctx.from.id,
+        username: ctx.from.username || '—',
+        date: new Date().toISOString(),
+      };
+
+      // Сохраняем результат в файл (JSONL)
+      try {
+        fs.appendFileSync('survey_results.json', JSON.stringify(data) + '\n');
+      } catch (err) {
+        console.error('Ошибка сохранения анкеты:', err);
+      }
+
+      // Отправляем итоговое сообщение
+      await ctx.reply(
+        lang.thanks(data),
+        { parse_mode: 'Markdown' }
+      );
+      await ctx.reply(
+        'Спасибо! 😊\nТы можешь пройти опрос ещё раз — просто напиши /start',
+        Markup.removeKeyboard()
+      );
+      await ctx.scene.leave();
+      break;
+
+    default:
+      await ctx.reply(lang.unknown);
   }
 });
 
-// Обработка отмены (если пользователь ввел что-то не то)
+// Обработка всех сообщений в сцене (если пользователь ввёл что-то не то)
 surveyScene.use(async (ctx) => {
-  if (ctx.message && ctx.message.text) {
-    // Игнорируем команды, но можно перехватить /cancel
-    if (ctx.message.text === '/cancel') {
-      await ctx.reply('Опрос отменён.');
-      await ctx.scene.leave();
-    } else {
-      // Пропускаем через обычные обработчики (но мы уже обработали текст выше)
-    }
+  if (ctx.message && ctx.message.text && ctx.message.text !== '/cancel') {
+    // Если текст не был обработан в switch, но мы уже обрабатываем всё в on('text')
+    // Этот блок на случай, если пользователь отправил что-то не текстовое
+    await ctx.reply('Пожалуйста, отвечай текстом или нажимай кнопки.');
   }
 });
 
 // ---------- Инициализация бота ----------
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// Сессия (храним состояние пользователя)
 bot.use(session());
 
-// Регистрируем сцену
 const stage = new Scenes.Stage([surveyScene]);
 bot.use(stage.middleware());
 
-// ---------- Обработчики команд ----------
+// ---------- Команда /start (запускает опрос) ----------
 bot.start(async (ctx) => {
-  const lang = getLang(ctx);
-  const firstName = ctx.from.first_name || 'друг';
-  await ctx.reply(
-    lang.welcome(firstName),
-    Markup.inlineKeyboard([
-      [Markup.button.callback('📋 Меню', 'menu')],
-      [Markup.button.callback('📝 Опрос', 'survey')],
-      [Markup.button.callback('❓ Помощь', 'help')],
-    ])
-  );
-});
-
-bot.help(async (ctx) => {
-  const lang = getLang(ctx);
-  await ctx.reply(lang.help);
-});
-
-// ---------- Обработка кнопок ----------
-bot.action('menu', async (ctx) => {
-  const lang = getLang(ctx);
-  await ctx.answerCbQuery(); // убираем состояние "загрузки"
-  await ctx.reply(lang.menu);
-});
-
-bot.action('survey', async (ctx) => {
-  await ctx.answerCbQuery();
   await ctx.scene.enter('survey');
 });
 
-bot.action('help', async (ctx) => {
+// ---------- Обработка команды /help ----------
+bot.help(async (ctx) => {
   const lang = getLang(ctx);
-  await ctx.answerCbQuery();
-  await ctx.reply(lang.help);
-});
-
-// ---------- Обработка текстовых приветствий ----------
-const greetingWords = ['привет', 'hello', 'здравствуй', 'здравствуйте', 'ку', 'салют', 'хай', 'hi'];
-
-bot.hears(greetingWords, async (ctx) => {
-  const lang = getLang(ctx);
-  const responses = lang.greeting;
-  const randomIndex = Math.floor(Math.random() * responses.length);
-  await ctx.reply(responses[randomIndex]);
-});
-
-// ---------- Обработка всего остального ----------
-bot.on('text', async (ctx) => {
-  const lang = getLang(ctx);
-  // Если текст не обработан предыдущими hear-ами, выводим подсказку
-  await ctx.reply(lang.unknown);
+  await ctx.reply(
+    '🤖 **Помощь**\n\n'
+    + 'Я бот для проведения опросов.\n'
+    + '• /start — начать опрос\n'
+    + '• /cancel — отменить опрос\n'
+    + '• /help — показать это сообщение\n\n'
+    + 'Просто отвечай на вопросы, и в конце я покажу результат.'
+  );
 });
 
 // ---------- Запуск ----------
 bot.launch()
-  .then(() => console.log('Бот запущен!'))
+  .then(() => console.log('Бот для опросов запущен!'))
   .catch((err) => {
     console.error('Ошибка запуска бота:', err);
     process.exit(1);
   });
 
-// Graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
