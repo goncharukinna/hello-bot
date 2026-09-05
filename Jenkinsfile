@@ -1,8 +1,7 @@
-pipeline {
-    agent {
-        kubernetes {
-            label 'node-agent'
-            yaml '''
+agent {
+    kubernetes {
+        label 'node-agent'
+        yaml '''
 apiVersion: v1
 kind: Pod
 spec:
@@ -30,8 +29,8 @@ spec:
     - mountPath: /home/jenkins/agent
       name: workspace-volume
   - name: kubectl
-    image: bitnami/kubectl:latest
-    command: ['cat']
+    image: alpine/kubectl:latest
+    command: ['sleep', 'infinity']
     tty: true
     volumeMounts:
     - mountPath: /home/jenkins/agent
@@ -43,8 +42,8 @@ spec:
   - name: workspace-volume
     emptyDir: {}
 '''
-        }
     }
+}
 
     environment {
         NAMESPACE = 'default'
