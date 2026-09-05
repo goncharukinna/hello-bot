@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-bot
+  namespace: default
+  labels:
+    app: hello-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hello-bot
+  template:
+    metadata:
+      labels:
+        app: hello-bot
+    spec:
+      containers:
+      - name: hello-bot
+        image: docin82/hello-bot:latest   # Замените на ваш образ
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80               # Если ваш бот слушает порт (необязательно)
+        env:
+        - name: BOT_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: bot-token             # Имя Secret, который вы создадите
+              key: BOT_TOKEN
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
