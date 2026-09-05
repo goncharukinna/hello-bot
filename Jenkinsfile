@@ -1,17 +1,15 @@
 pipeline {
-    agent {
-        kubernetes {
-            label 'node-agent'
-            yaml '''
+agent {
+    kubernetes {
+        label 'node-agent'
+        yaml '''
 apiVersion: v1
 kind: Pod
 spec:
   containers:
   - name: jnlp
-    image: node:18-alpine
-    command:
-    - cat
-    tty: true
+    image: jenkins/jnlp-slave:latest
+    args: ['$(JENKINS_SECRET)', '$(JENKINS_NAME)']
     volumeMounts:
     - mountPath: /var/run/docker.sock
       name: docker-socket
@@ -20,8 +18,8 @@ spec:
     hostPath:
       path: /var/run/docker.sock
 '''
-        }
     }
+}
 
     environment {
         NAMESPACE = 'default'
