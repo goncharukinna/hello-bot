@@ -1,6 +1,6 @@
-FROM node:lts-alpine
+FROM node:18-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm install --only=production
+RUN npm install
 COPY . .
 CMD ["node", "index.js"]

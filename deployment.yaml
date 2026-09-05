@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: hello-bot
-        image: docin82/hello-bot:latest   # Замените на ваш образ
+        image: docin82/hello-bot:v1.0.0   # Замените на ваш образ
         imagePullPolicy: Always
         ports:
         - containerPort: 80               # Если ваш бот слушает порт (необязательно)
