@@ -20,13 +20,28 @@ spec:
         image: docin82/hello-bot:v1.0.0   # Замените на ваш образ
         imagePullPolicy: Always
         ports:
-        - containerPort: 80               # Если ваш бот слушает порт (необязательно)
+        - containerPort: 80
         env:
         - name: BOT_TOKEN
           valueFrom:
             secretKeyRef:
-              name: bot-token             # Имя Secret, который вы создадите
+              name: bot-token
               key: BOT_TOKEN
+        # 👇 Добавлено для RabbitMQ
+        - name: RABBITMQ_HOST
+          value: "my-rabbitmq.rabbitmq.svc.cluster.local"
+        - name: RABBITMQ_PORT
+          value: "5672"
+        - name: RABBITMQ_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: rabbitmq-username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-credentials
+              key: rabbitmq-password
         resources:
           requests:
             memory: "64Mi"
