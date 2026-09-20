@@ -3,6 +3,10 @@ require('dotenv').config();
 const { Telegraf, Scenes, session, Markup } = require('telegraf');
 const fs = require('fs');
 
+const { connect } = require('./rabbitmq');
+const { sendToQueue } = require('./producer');
+const { startConsumer } = require('./consumer');
+
 // ---------- Языковые ресурсы ----------
 const strings = {
   ru: {
@@ -179,31 +183,73 @@ bot.use(session());
 const stage = new Scenes.Stage([surveyScene]);
 bot.use(stage.middleware());
 
-// ---------- Команда /start (запускает опрос) ----------
+// ---------- Команда /start (отправка события + запуск опроса) ----------
 bot.start(async (ctx) => {
+  const firstName = ctx.from.first_name || 'друг';
+
+  // Отправляем событие в RabbitMQ (если очередь доступна)
+  try {
+    await sendToQueue('user_events', {
+      event: 'start',
+      userId: ctx.from.id,
+      name: firstName,
+      username: ctx.from.username || '—',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('⚠️ RabbitMQ недоступен, продолжаем без него:', err.message);
+    // Не прерываем работу бота, если RabbitMQ упал
+  }
+
+  // Запускаем сцену опроса (приветствие + первый вопрос)
   await ctx.scene.enter('survey');
 });
 
-// ---------- Обработка команды /help ----------
+// ---------- Команда /help ----------
 bot.help(async (ctx) => {
-  const lang = getLang(ctx);
   await ctx.reply(
-    '🤖 **Помощь**\n\n'
-    + 'Я бот для проведения опросов.\n'
-    + '• /start — начать опрос\n'
-    + '• /cancel — отменить опрос\n'
-    + '• /help — показать это сообщение\n\n'
-    + 'Просто отвечай на вопросы, и в конце я покажу результат.'
+    '🤖 **Помощь**\n\n' +
+      'Я бот для проведения опросов.\n' +
+      '• /start — начать опрос\n' +
+      '• /cancel — отменить опрос\n' +
+      '• /help — показать это сообщение\n\n' +
+      'Просто отвечай на вопросы, и в конце я покажу результат.'
   );
 });
 
-// ---------- Запуск ----------
-bot.launch()
-  .then(() => console.log('Бот для опросов запущен!'))
-  .catch((err) => {
-    console.error('Ошибка запуска бота:', err);
-    process.exit(1);
-  });
+// ---------- Запуск бота + RabbitMQ ----------
+(async () => {
+  try {
+    // 1. Запускаем бота
+    await bot.launch();
+    console.log('✅ Бот для опросов запущен!');
 
+    // 2. Подключаемся к RabbitMQ (после запуска бота)
+    try {
+      await connect();
+      console.log('✅ RabbitMQ подключён');
+
+      // 3. Слушаем очередь уведомлений
+      startConsumer('notifications', async (data) => {
+        console.log('📥 Получено уведомление:', data);
+        if (data.userId && data.text) {
+          try {
+            await bot.telegram.sendMessage(data.userId, data.text);
+          } catch (err) {
+            console.error('Не удалось отправить уведомление:', err.message);
+          }
+        }
+      });
+    } catch (err) {
+      console.error('⚠️ RabbitMQ не подключён, бот работает без него:', err.message);
+      // Бот продолжит работать даже без RabbitMQ
+    }
+  } catch (err) {
+    console.error('❌ Ошибка запуска бота:', err);
+    process.exit(1);
+  }
+})();
+
+// ---------- Graceful shutdown ----------
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
