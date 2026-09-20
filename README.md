@@ -1,2 +1,37 @@
 # hello-bot
-hello-bot - a bot that responds to greetings in three languages.
+
+Telegram-бот с опросником, интеграцией RabbitMQ и полным CI/CD в Kubernetes.
+
+## 📌 О проекте
+
+Бот проводит интерактивный опрос пользователей (имя, возраст, пол, город, любимый цвет, хобби), 
+публикует события в RabbitMQ и пересылает уведомления обратно в Telegram. 
+Развёрнут в Kubernetes с автоматической сборкой через Jenkins и мониторингом в Prometheus + Grafana.
+
+## ✨ Возможности
+
+- 🎯 **Интерактивный опрос** — 6 вопросов с валидацией
+- 🌍 **Мультиязычность** — русский и английский (автоопределение)
+- 🐇 **RabbitMQ** — публикация и получение событий через очереди
+- 📊 **Мониторинг** — метрики в Prometheus, дашборды в Grafana
+- 🔔 **Алертинг** — уведомления о падении пода в Telegram через Alertmanager
+- 🚀 **CI/CD** — автоматическая сборка и деплой через Jenkins
+- 📦 **Контейнеризация** — Docker-образ в Docker Hub
+
+## 🛠️ Технологический стек
+
+| Компонент | Технология |
+| :--- | :--- |
+| Язык | Node.js 18 |
+| Framework | Telegraf 4.x |
+| Брокер сообщений | RabbitMQ 4.1 (amqplib) |
+| Контейнеризация | Docker |
+| Оркестрация | Kubernetes (Docker Desktop) |
+| CI/CD | Jenkins (Kubernetes-агент) |
+| Мониторинг | Prometheus + Grafana |
+| Алертинг | Alertmanager → Telegram |
+| IaC | Ansible |
+| Секреты | Kubernetes Secrets |
+
+## 📁 Структура
+
