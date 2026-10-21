@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         NAMESPACE = 'default'
-        DOCKER_IMAGE = 'docin82/hello-bot'
+        DOCKER_IMAGE = 'docin82/echo-bot'
     }
 
     stages {
@@ -77,11 +77,11 @@ pipeline {
                         sh '''
                             git clone https://${GIT_USER}:${GIT_TOKEN}@github.com/goncharukinna/bots-gitops.git /tmp/gitops
                             cd /tmp/gitops
-                            sed -i "s|image: docin82/hello-bot:.*|image: docin82/hello-bot:${BUILD_ID}|" manifests/hello-bot/deployment.yaml
+                            sed -i "s|image: docin82/echo-bot:.*|image: docin82/echo-bot:${BUILD_ID}|" manifests/echo-bot/deployment.yaml
                             git config user.name "Jenkins"
                             git config user.email "jenkins@example.com"
-                            git add manifests/hello-bot/deployment.yaml
-                            git commit -m "hello-bot: update to ${BUILD_ID} [skip ci]"
+                            git add manifests/echo-bot/deployment.yaml
+                            git commit -m "echo-bot: update to ${BUILD_ID} [skip ci]"
                             git push
                             echo "✅ GitOps обновлён до версии ${BUILD_ID}"
                         '''
@@ -93,7 +93,7 @@ pipeline {
 
     post {
         success {
-            echo "🎉 hello-bot ${BUILD_ID} собран, запушен и обновлён в GitOps"
+            echo "🎉 echo-bot ${BUILD_ID} собран, запушен и обновлён в GitOps"
         }
         failure {
             echo "❌ Ошибка сборки"
